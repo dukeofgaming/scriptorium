@@ -41,7 +41,7 @@ The text that is copied.
 
 Recognised links:
 
-- Jira: `https://<site>.atlassian.net/browse/BOOK-12`
+- Jira: `https://<site>.atlassian.net/browse/BOOK-12`, or a board URL whose query contains `selectedIssue=BOOK-12`
 - Confluence: a `/wiki/.../pages/<id>` URL, or `pageId=<id>`
 - Google Docs: `https://docs.google.com/document/d/<id>/...`
 

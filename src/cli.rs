@@ -1,8 +1,11 @@
 //! Command line for the three copying verbs, plus link inspection.
 
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+
+use crate::links;
 
 #[derive(Parser)]
 #[command(
@@ -24,20 +27,35 @@ enum Command {
     /// Compare the manuscript, the remote, and the last copy that matched.
     Check,
     /// List the classified `sync` links named by a manuscript.
-    Links,
+    Links {
+        /// Path to the Markdown manuscript.
+        file: PathBuf,
+    },
 }
 
 impl Cli {
     fn execute(self) -> i32 {
-        let name = match self.command {
-            Command::Pull => "pull",
-            Command::Push => "push",
-            Command::Check => "check",
-            Command::Links => "links",
-        };
-        eprintln!("{name} is not copied yet");
-        2
+        match self.command {
+            Command::Links { file } => match links::list(&file) {
+                Ok(text) => {
+                    print!("{text}");
+                    0
+                }
+                Err(err) => {
+                    eprintln!("{err}");
+                    1
+                }
+            },
+            Command::Pull => unfinished("pull"),
+            Command::Push => unfinished("push"),
+            Command::Check => unfinished("check"),
+        }
     }
+}
+
+fn unfinished(name: &str) -> i32 {
+    eprintln!("{name} is not copied yet");
+    2
 }
 
 /// Parse `args` and run the selected command.
