@@ -7,6 +7,7 @@ use clap::{Parser, Subcommand};
 
 use crate::links;
 use crate::pull;
+use crate::push::{self, PushReport};
 use crate::remote;
 
 #[derive(Parser)]
@@ -28,7 +29,10 @@ enum Command {
         file: PathBuf,
     },
     /// Copy the manuscript onto the remote exemplar.
-    Push,
+    Push {
+        /// Path to the Markdown manuscript.
+        file: PathBuf,
+    },
     /// Compare the manuscript, the remote, and the last copy that matched.
     Check,
     /// List the classified `sync` links named by a manuscript.
@@ -67,7 +71,26 @@ impl Cli {
                     1
                 }
             },
-            Command::Push => unfinished("push"),
+            Command::Push { file } => match remote::from_env() {
+                Ok(remote) => match push::push(&file, remote.as_ref()) {
+                    Ok(PushReport::Pushed { url }) => {
+                        println!("pushed {url}");
+                        0
+                    }
+                    Ok(PushReport::InSync { url }) => {
+                        println!("already in sync {url}");
+                        0
+                    }
+                    Err(err) => {
+                        eprintln!("{err}");
+                        1
+                    }
+                },
+                Err(err) => {
+                    eprintln!("{err}");
+                    1
+                }
+            },
             Command::Check => unfinished("check"),
         }
     }

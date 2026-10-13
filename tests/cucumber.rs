@@ -4,7 +4,7 @@ use std::process::Command;
 
 use cucumber::{gherkin::Step, given, then, when, World};
 use scriptorium::remote::FakeRemote;
-use scriptorium::sync_state::{self, Ledger};
+use scriptorium::sync_state::{self, CopyRecord, Ledger};
 use tempfile::TempDir;
 
 #[derive(Debug, World)]
@@ -58,6 +58,26 @@ fn write_manuscript(world: &mut ScriptoriumWorld, name: String, step: &Step) {
         file.push('\n');
     }
     std::fs::write(path, file).expect("write manuscript");
+}
+
+#[given(expr = "the ledger for {string} records {string} at revision {string} for body:")]
+fn seed_ledger(
+    world: &mut ScriptoriumWorld,
+    name: String,
+    url: String,
+    revision: String,
+    step: &Step,
+) {
+    let path = sync_state::path_for(&world.dir.path().join(&name));
+    let mut ledger = Ledger::load(&path).expect("load ledger");
+    ledger.copies.insert(
+        url,
+        CopyRecord {
+            revision,
+            content_sha256: sync_state::content_sha256(&docstring(step)),
+        },
+    );
+    ledger.save(&path).expect("save ledger");
 }
 
 #[when(expr = "I run {string}")]
@@ -122,6 +142,17 @@ fn ledger_records(world: &mut ScriptoriumWorld, name: String, url: String, revis
         record.content_sha256,
         sync_state::content_sha256(&manuscript.body)
     );
+}
+
+#[then(expr = "the remote copy {string} is at revision {string}:")]
+fn remote_is(world: &mut ScriptoriumWorld, url: String, revision: String, step: &Step) {
+    let fake = FakeRemote::open(world.remote_path());
+    let copy = fake
+        .get(&url)
+        .expect("read fake remote")
+        .unwrap_or_else(|| panic!("no remote copy for {url}"));
+    assert_eq!(copy.revision, revision);
+    assert_eq!(copy.body, sync_state::normalize_body(&docstring(step)));
 }
 
 fn with_trailing_newline(text: &str) -> String {
