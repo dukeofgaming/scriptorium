@@ -19,12 +19,12 @@ Embedding `yup_oauth2` installed-app flow, or the generated `google-docs1` clien
 ## Decision
 
 - Jira adapter: shell out to `acli`.
-- Confluence adapter: Confluence REST API v2 with `ATLASSIAN_SITE`, `ATLASSIAN_EMAIL`, and `ATLASSIAN_API_TOKEN`.
+- Confluence adapter: Confluence REST API v2 with `ATLASSIAN_EMAIL` and `ATLASSIAN_API_TOKEN`. The site host is the host of the page URL.
 - Google Docs adapter: Docs REST API. Token from `GOOGLE_ACCESS_TOKEN`, otherwise `gcloud auth application-default print-access-token`.
 - One `RemotePort` trait. `SCRIPTORIUM_FAKE_REMOTE` points the binary at a JSON file of copies. Live tests are gated by `SCRIPTORIUM_LIVE=1`.
 
 ## Consequences
 
-- Jira setup is `acli` login. Confluence setup is three environment variables, because `acli` cannot write pages.
+- Jira setup is `acli` login. Confluence setup is the email and API token, because `acli` cannot write pages.
 - Google setup is a one-time ADC login that includes the Docs scope. See the README.
 - End-to-end features never call the network. Adapter unit tests feed recorded JSON and a stub process runner.

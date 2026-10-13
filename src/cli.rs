@@ -68,12 +68,13 @@ impl Cli {
             },
             Command::Pull { file, force } => match remote::from_env() {
                 Ok(remote) => match pull::pull(&file, remote.as_ref(), force) {
-                    Ok(PullReport::Pulled { url }) => {
-                        println!("pulled {url}");
-                        0
-                    }
-                    Ok(PullReport::InSync { url }) => {
-                        println!("already in sync {url}");
+                    Ok(reports) => {
+                        for report in reports {
+                            match report {
+                                PullReport::Pulled { url } => println!("pulled {url}"),
+                                PullReport::InSync { url } => println!("already in sync {url}"),
+                            }
+                        }
                         0
                     }
                     Err(err) => {
@@ -88,12 +89,13 @@ impl Cli {
             },
             Command::Push { file, force } => match remote::from_env() {
                 Ok(remote) => match push::push(&file, remote.as_ref(), force) {
-                    Ok(PushReport::Pushed { url }) => {
-                        println!("pushed {url}");
-                        0
-                    }
-                    Ok(PushReport::InSync { url }) => {
-                        println!("already in sync {url}");
+                    Ok(reports) => {
+                        for report in reports {
+                            match report {
+                                PushReport::Pushed { url } => println!("pushed {url}"),
+                                PushReport::InSync { url } => println!("already in sync {url}"),
+                            }
+                        }
                         0
                     }
                     Err(err) => {
