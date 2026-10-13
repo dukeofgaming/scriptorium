@@ -1,0 +1,18 @@
+[package]
+name = "scriptorium"
+version = "0.1.0"
+edition = "2021"
+description = "Copy a Markdown manuscript to and from Jira, Confluence, and Google Docs"
+readme = "README.md"
+rust-version = "1.85"
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }
+
+[dev-dependencies]
+cucumber = "0.23"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[[test]]
+name = "cucumber"
+harness = false
