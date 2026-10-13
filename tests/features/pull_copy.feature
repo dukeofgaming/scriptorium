@@ -4,9 +4,9 @@ Feature: Pull a Jira work item onto the manuscript
   as it was written. These scenarios use the file-backed fake remote, not a
   live Jira site.
 
-  A later slice refuses to overwrite a manuscript that has diverged. The
-  copies below land on an empty page, or on a page that already says the
-  same thing.
+  Pull refuses when the manuscript has local edits the remote does not have.
+  Those refusals are specified in `check_before_copying.feature`. The copies
+  below land on an empty page, or on a page that already says the same thing.
 
   Scenario: An empty manuscript takes the work item description
     Given a manuscript "colophon.md":

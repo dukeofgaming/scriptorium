@@ -4,7 +4,8 @@ Feature: Push the manuscript onto a Jira work item
   manuscript, and the remote revision already agree, the remote is left
   untouched. These scenarios use the file-backed fake remote.
 
-  A later slice refuses to overwrite a remote that has moved. The copies
+  Push refuses when the remote revision moved after the ledger was written.
+  Those refusals are specified in `check_before_copying.feature`. The copies
   below either match the ledger or have never been stored.
 
   Scenario: A local edit is copied onto the work item

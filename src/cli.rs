@@ -5,9 +5,11 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+use crate::check;
+use crate::drift::Drift;
 use crate::links;
-use crate::pull;
-use crate::push::{self, PushReport};
+use crate::pull::{self, PullError, PullReport};
+use crate::push::{self, PushError, PushReport};
 use crate::remote;
 
 #[derive(Parser)]
@@ -27,14 +29,23 @@ enum Command {
     Pull {
         /// Path to the Markdown manuscript.
         file: PathBuf,
+        /// Overwrite a manuscript that has diverged.
+        #[arg(long)]
+        force: bool,
     },
     /// Copy the manuscript onto the remote exemplar.
     Push {
         /// Path to the Markdown manuscript.
         file: PathBuf,
+        /// Overwrite a remote that has diverged.
+        #[arg(long)]
+        force: bool,
     },
     /// Compare the manuscript, the remote, and the last copy that matched.
-    Check,
+    Check {
+        /// Path to the Markdown manuscript.
+        file: PathBuf,
+    },
     /// List the classified `sync` links named by a manuscript.
     Links {
         /// Path to the Markdown manuscript.
@@ -55,15 +66,19 @@ impl Cli {
                     1
                 }
             },
-            Command::Pull { file } => match remote::from_env() {
-                Ok(remote) => match pull::pull(&file, remote.as_ref()) {
-                    Ok(report) => {
-                        println!("pulled {}", report.url);
+            Command::Pull { file, force } => match remote::from_env() {
+                Ok(remote) => match pull::pull(&file, remote.as_ref(), force) {
+                    Ok(PullReport::Pulled { url }) => {
+                        println!("pulled {url}");
+                        0
+                    }
+                    Ok(PullReport::InSync { url }) => {
+                        println!("already in sync {url}");
                         0
                     }
                     Err(err) => {
                         eprintln!("{err}");
-                        1
+                        pull_code(&err)
                     }
                 },
                 Err(err) => {
@@ -71,8 +86,8 @@ impl Cli {
                     1
                 }
             },
-            Command::Push { file } => match remote::from_env() {
-                Ok(remote) => match push::push(&file, remote.as_ref()) {
+            Command::Push { file, force } => match remote::from_env() {
+                Ok(remote) => match push::push(&file, remote.as_ref(), force) {
                     Ok(PushReport::Pushed { url }) => {
                         println!("pushed {url}");
                         0
@@ -83,6 +98,32 @@ impl Cli {
                     }
                     Err(err) => {
                         eprintln!("{err}");
+                        push_code(&err)
+                    }
+                },
+                Err(err) => {
+                    eprintln!("{err}");
+                    1
+                }
+            },
+            Command::Check { file } => match remote::from_env() {
+                Ok(remote) => match check::check(&file, remote.as_ref()) {
+                    Ok(findings) => {
+                        let mut diverged = false;
+                        for finding in findings {
+                            if finding.drift == Drift::Diverged {
+                                diverged = true;
+                            }
+                            println!("{} {}", finding.drift.label(), finding.url);
+                        }
+                        if diverged {
+                            3
+                        } else {
+                            0
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("{err}");
                         1
                     }
                 },
@@ -91,14 +132,22 @@ impl Cli {
                     1
                 }
             },
-            Command::Check => unfinished("check"),
         }
     }
 }
 
-fn unfinished(name: &str) -> i32 {
-    eprintln!("{name} is not copied yet");
-    2
+fn pull_code(err: &PullError) -> i32 {
+    match err {
+        PullError::Conflict { .. } => 3,
+        _ => 1,
+    }
+}
+
+fn push_code(err: &PushError) -> i32 {
+    match err {
+        PushError::Conflict { .. } => 3,
+        _ => 1,
+    }
 }
 
 /// Parse `args` and run the selected command.

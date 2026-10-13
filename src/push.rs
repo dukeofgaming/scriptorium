@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::document::{self, DocumentError, LinkKind};
-use crate::remote::{RemoteCopy, RemoteError, RemotePort};
+use crate::drift::{self, Gate};
+use crate::remote::{RemoteError, RemotePort};
 use crate::sync_state::{self, CopyRecord, Ledger, SyncStateError};
 
 /// What push did with the single link.
@@ -37,13 +38,16 @@ pub enum PushError {
     TooMany { path: PathBuf, count: usize },
     #[error("{kind} cannot be pushed yet")]
     Unsupported { kind: String },
+    #[error("refusing to overwrite {url} (pass --force)")]
+    Conflict { url: String },
 }
 
 /// Write the manuscript body to its Jira work item and update the ledger.
 ///
 /// When the ledger, the body, and the remote revision already agree, the
-/// remote is left untouched. Refusing a remote that moved is the conflict slice.
-pub fn push(path: &Path, remote: &dyn RemotePort) -> Result<PushReport, PushError> {
+/// remote is left untouched. A remote that moved, or a pair that both moved,
+/// is refused unless `force` is set.
+pub fn push(path: &Path, remote: &dyn RemotePort, force: bool) -> Result<PushReport, PushError> {
     let text = fs::read_to_string(path).map_err(|source| PushError::Read {
         path: path.to_path_buf(),
         source,
@@ -72,10 +76,28 @@ pub fn push(path: &Path, remote: &dyn RemotePort) -> Result<PushReport, PushErro
         Err(RemoteError::NotFound(_)) => None,
         Err(err) => return Err(err.into()),
     };
-    if already_in_sync(ledger.copies.get(&link.url), current.as_ref(), &local_hash) {
-        return Ok(PushReport::InSync {
-            url: link.url.clone(),
-        });
+    let (remote_revision, remote_body) = match current.as_ref() {
+        Some(copy) => (copy.revision.as_str(), copy.body.as_str()),
+        None => ("", ""),
+    };
+    let state = drift::drift(&local_hash, remote_revision, ledger.copies.get(&link.url));
+    match drift::gate_push(
+        state,
+        force,
+        sync_state::body_is_blank(remote_body),
+        sync_state::content_sha256(remote_body) == local_hash,
+    ) {
+        Gate::Already => {
+            return Ok(PushReport::InSync {
+                url: link.url.clone(),
+            });
+        }
+        Gate::Refuse => {
+            return Err(PushError::Conflict {
+                url: link.url.clone(),
+            });
+        }
+        Gate::Write => {}
     }
 
     let updated = remote.push(link, &manuscript.body)?;
@@ -90,17 +112,4 @@ pub fn push(path: &Path, remote: &dyn RemotePort) -> Result<PushReport, PushErro
     Ok(PushReport::Pushed {
         url: link.url.clone(),
     })
-}
-
-fn already_in_sync(
-    record: Option<&CopyRecord>,
-    remote: Option<&RemoteCopy>,
-    local_hash: &str,
-) -> bool {
-    match (record, remote) {
-        (Some(record), Some(remote)) => {
-            record.revision == remote.revision && record.content_sha256 == local_hash
-        }
-        _ => false,
-    }
 }

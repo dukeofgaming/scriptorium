@@ -13,6 +13,18 @@ Monks in a scriptorium copied a book by hand and kept the exemplar and the copy 
 
 `pull` and `push` take `--force` when the scribe means to overwrite a diverged copy.
 
+`check` prints one line per link:
+
+| Line | Meaning |
+| --- | --- |
+| `in-sync` | The body hash and the remote revision both match the ledger. |
+| `local-ahead` | Only the manuscript changed. Safe to `push`. |
+| `remote-ahead` | Only the remote revision changed. Safe to `pull`. |
+| `diverged` | Both changed. Exit code 3. `push` and `pull` refuse without `--force`. |
+| `unsynced` | No ledger entry yet. A blank side, or two sides that already say the same thing, may be copied. |
+
+The remote revision is the provider's version token: Jira's `updated` field, the Confluence page version, or a Google Docs `revisionId`. The fake store used in tests uses a decimal counter.
+
 ### Why `check`
 
 The third command is `check`, not `status`. Status sounds like a tour of a working tree. Check is the comparison a copyist makes before the pen touches either page: does the manuscript still match the last agreed copy, and does the remote? `push` and `pull` run that same comparison and refuse to overwrite a diverged side unless `--force` is passed.
