@@ -71,10 +71,9 @@ Jira uses the official Atlassian CLI. Confluence uses the Cloud REST API, becaus
 
    Or pipe an API token: `echo "$ATLASSIAN_API_TOKEN" | acli jira auth login --site "acme.atlassian.net" --email "you@acme.com" --token`.
 
-2. For Confluence, export the same kind of API token:
+2. For Confluence, export the same kind of API token. The site host is taken from the page URL.
 
    ```bash
-   export ATLASSIAN_SITE=acme.atlassian.net
    export ATLASSIAN_EMAIL=you@acme.com
    export ATLASSIAN_API_TOKEN=...
    ```
@@ -109,4 +108,14 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-`cargo test` runs unit tests and the cucumber features. A fake remote (`SCRIPTORIUM_FAKE_REMOTE`) keeps those features off the network. Live service checks are gated by `SCRIPTORIUM_LIVE=1` and are described with the provider slice.
+`cargo test` runs unit tests and the cucumber features. A fake remote (`SCRIPTORIUM_FAKE_REMOTE`) keeps those features off the network. To call a real service as well:
+
+```bash
+export SCRIPTORIUM_LIVE=1
+export SCRIPTORIUM_LIVE_JIRA_URL=https://acme.atlassian.net/browse/BOOK-12
+export SCRIPTORIUM_LIVE_CONFLUENCE_URL=https://acme.atlassian.net/wiki/spaces/LIB/pages/98765/Colophon
+export SCRIPTORIUM_LIVE_GOOGLE_DOC_URL=https://docs.google.com/document/d/DOCUMENT_ID/edit
+cargo test --test live
+```
+
+Set only the URLs you want to call. `SCRIPTORIUM_LIVE_PUSH=1` writes the fetched body back to that remote.

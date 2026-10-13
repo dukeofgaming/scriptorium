@@ -1,11 +1,16 @@
 //! Remote copies. Use cases depend on [`RemotePort`], not on acli or HTTP.
 
+mod confluence;
 mod fake;
+mod google_docs;
+mod http;
 mod jira;
 
 use crate::document::ClassifiedLink;
 
+pub use confluence::ConfluenceRest;
 pub use fake::FakeRemote;
+pub use google_docs::GoogleDocsRest;
 pub use jira::JiraAcli;
 
 /// A remote body and the revision that identifies that version.
@@ -43,31 +48,31 @@ pub fn from_env() -> Result<Box<dyn RemotePort>, RemoteError> {
     }
     Ok(Box::new(RoutingRemote {
         jira: JiraAcli::from_env(),
+        confluence: confluence::ConfluenceRest::from_env(),
+        google_docs: google_docs::GoogleDocsRest::from_env(),
     }))
 }
 
 struct RoutingRemote {
     jira: JiraAcli<jira::SystemCommand>,
+    confluence: confluence::ConfluenceRest<http::UreqHttp>,
+    google_docs: google_docs::GoogleDocsRest<http::UreqHttp>,
 }
 
 impl RemotePort for RoutingRemote {
     fn fetch(&self, link: &ClassifiedLink) -> Result<RemoteCopy, RemoteError> {
         match &link.kind {
             crate::document::LinkKind::Jira { .. } => self.jira.fetch(link),
-            other => Err(RemoteError::Message(format!(
-                "{} cannot be copied yet",
-                other.summary()
-            ))),
+            crate::document::LinkKind::Confluence { .. } => self.confluence.fetch(link),
+            crate::document::LinkKind::GoogleDoc { .. } => self.google_docs.fetch(link),
         }
     }
 
     fn push(&self, link: &ClassifiedLink, body: &str) -> Result<RemoteCopy, RemoteError> {
         match &link.kind {
             crate::document::LinkKind::Jira { .. } => self.jira.push(link, body),
-            other => Err(RemoteError::Message(format!(
-                "{} cannot be copied yet",
-                other.summary()
-            ))),
+            crate::document::LinkKind::Confluence { .. } => self.confluence.push(link, body),
+            crate::document::LinkKind::GoogleDoc { .. } => self.google_docs.push(link, body),
         }
     }
 }
