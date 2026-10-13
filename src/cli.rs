@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 
 use crate::links;
+use crate::pull;
+use crate::remote;
 
 #[derive(Parser)]
 #[command(
@@ -21,7 +23,10 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Copy the remote exemplar onto the manuscript.
-    Pull,
+    Pull {
+        /// Path to the Markdown manuscript.
+        file: PathBuf,
+    },
     /// Copy the manuscript onto the remote exemplar.
     Push,
     /// Compare the manuscript, the remote, and the last copy that matched.
@@ -46,7 +51,22 @@ impl Cli {
                     1
                 }
             },
-            Command::Pull => unfinished("pull"),
+            Command::Pull { file } => match remote::from_env() {
+                Ok(remote) => match pull::pull(&file, remote.as_ref()) {
+                    Ok(report) => {
+                        println!("pulled {}", report.url);
+                        0
+                    }
+                    Err(err) => {
+                        eprintln!("{err}");
+                        1
+                    }
+                },
+                Err(err) => {
+                    eprintln!("{err}");
+                    1
+                }
+            },
             Command::Push => unfinished("push"),
             Command::Check => unfinished("check"),
         }

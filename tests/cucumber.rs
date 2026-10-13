@@ -3,6 +3,8 @@
 use std::process::Command;
 
 use cucumber::{gherkin::Step, given, then, when, World};
+use scriptorium::remote::FakeRemote;
+use scriptorium::sync_state::{self, Ledger};
 use tempfile::TempDir;
 
 #[derive(Debug, World)]
@@ -23,17 +25,30 @@ impl ScriptoriumWorld {
             stderr: String::new(),
         }
     }
+
+    fn remote_path(&self) -> std::path::PathBuf {
+        self.dir.path().join("remote-copies.json")
+    }
+}
+
+fn docstring(step: &Step) -> String {
+    step.docstring
+        .clone()
+        .expect("docstring")
+        .trim_start_matches(['\r', '\n'])
+        .to_string()
+}
+
+#[given(expr = "the remote copy {string} at revision {string}:")]
+fn seed_remote(world: &mut ScriptoriumWorld, url: String, revision: String, step: &Step) {
+    let fake = FakeRemote::open(world.remote_path());
+    fake.insert(&url, &revision, &docstring(step))
+        .expect("seed remote");
 }
 
 #[given(expr = "a manuscript {string}:")]
 fn write_manuscript(world: &mut ScriptoriumWorld, name: String, step: &Step) {
-    // The opening line of a docstring is the newline after `"""`.
-    let text = step
-        .docstring
-        .clone()
-        .expect("manuscript text")
-        .trim_start_matches(['\r', '\n'])
-        .to_string();
+    let text = docstring(step);
     let path = world.dir.path().join(&name);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("parent directory");
@@ -57,6 +72,7 @@ fn run_command(world: &mut ScriptoriumWorld, line: String) {
     let output = Command::new(env!("CARGO_BIN_EXE_scriptorium"))
         .args(&args)
         .current_dir(world.dir.path())
+        .env("SCRIPTORIUM_FAKE_REMOTE", world.remote_path())
         .output()
         .expect("run scriptorium");
     world.status = output.status.code().unwrap_or(1);
@@ -80,6 +96,40 @@ fn stdout_contains(world: &mut ScriptoriumWorld, expected: String) {
         "stdout did not contain {expected:?}:\n{}",
         world.stdout
     );
+}
+
+#[then(expr = "the file {string} is:")]
+fn file_is(world: &mut ScriptoriumWorld, name: String, step: &Step) {
+    let actual = std::fs::read_to_string(world.dir.path().join(&name)).expect("read file");
+    let expected = with_trailing_newline(&docstring(step));
+    assert_eq!(actual, expected, "file {name} did not match");
+}
+
+#[then(
+    expr = "the ledger for {string} records {string} at revision {string} for the manuscript body"
+)]
+fn ledger_records(world: &mut ScriptoriumWorld, name: String, url: String, revision: String) {
+    let manuscript_path = world.dir.path().join(&name);
+    let ledger = Ledger::load(&sync_state::path_for(&manuscript_path)).expect("load ledger");
+    let record = ledger
+        .copies
+        .get(&url)
+        .unwrap_or_else(|| panic!("no ledger entry for {url}"));
+    assert_eq!(record.revision, revision);
+    let text = std::fs::read_to_string(&manuscript_path).expect("read manuscript");
+    let manuscript = scriptorium::document::parse(&text).expect("parse manuscript");
+    assert_eq!(
+        record.content_sha256,
+        sync_state::content_sha256(&manuscript.body)
+    );
+}
+
+fn with_trailing_newline(text: &str) -> String {
+    if text.ends_with('\n') {
+        text.to_string()
+    } else {
+        format!("{text}\n")
+    }
 }
 
 #[then(expr = "stderr contains {string}")]

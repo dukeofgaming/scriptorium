@@ -9,5 +9,8 @@ pub fn run(args: impl IntoIterator<Item = impl Into<std::ffi::OsString> + Clone>
 
 pub mod document;
 pub mod links;
+pub mod pull;
+pub mod remote;
+pub mod sync_state;
 
 mod cli;
