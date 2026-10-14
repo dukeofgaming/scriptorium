@@ -37,6 +37,18 @@ pub enum LinkKind {
     Confluence { page_id: String },
     /// A Google Doc, addressed by its document id.
     GoogleDoc { document_id: String },
+    /// A GitHub issue, addressed by owner, repository, and number.
+    GitHubIssue {
+        owner: String,
+        repo: String,
+        number: String,
+    },
+    /// A GitHub pull request, addressed by owner, repository, and number.
+    GitHubPullRequest {
+        owner: String,
+        repo: String,
+        number: String,
+    },
 }
 
 impl LinkKind {
@@ -46,6 +58,16 @@ impl LinkKind {
             Self::Jira { key } => format!("jira {key}"),
             Self::Confluence { page_id } => format!("confluence {page_id}"),
             Self::GoogleDoc { document_id } => format!("google-doc {document_id}"),
+            Self::GitHubIssue {
+                owner,
+                repo,
+                number,
+            } => format!("github-issue {owner}/{repo}#{number}"),
+            Self::GitHubPullRequest {
+                owner,
+                repo,
+                number,
+            } => format!("github-pr {owner}/{repo}#{number}"),
         }
     }
 }
@@ -120,6 +142,12 @@ pub fn classify(url: &str) -> Result<ClassifiedLink, DocumentError> {
             kind: LinkKind::GoogleDoc { document_id },
         });
     }
+    if let Some(kind) = github_kind(url) {
+        return Ok(ClassifiedLink {
+            url: url.to_string(),
+            kind,
+        });
+    }
     if url.contains("/wiki/") {
         let Some(page_id) = confluence_page_id(url) else {
             return Err(DocumentError::UnrecognizedLink(url.to_string()));
@@ -186,6 +214,41 @@ fn confluence_page_id(url: &str) -> Option<String> {
         .map(|id| id.as_str().to_string())
 }
 
+fn github_kind(url: &str) -> Option<LinkKind> {
+    static ISSUE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"^https?://github\.com/([^/\s]+)/([^/\s]+)/issues/(\d+)(?:[/?#].*)?$")
+            .expect("regex")
+    });
+    static PULL: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"^https?://github\.com/([^/\s]+)/([^/\s]+)/pull/(\d+)(?:[/?#].*)?$")
+            .expect("regex")
+    });
+    if let Some(kind) = github_match(&ISSUE, url, true) {
+        return Some(kind);
+    }
+    github_match(&PULL, url, false)
+}
+
+fn github_match(regex: &Regex, url: &str, issue: bool) -> Option<LinkKind> {
+    let caps = regex.captures(url)?;
+    let owner = caps.get(1)?.as_str().to_string();
+    let repo = caps.get(2)?.as_str().to_string();
+    let number = caps.get(3)?.as_str().to_string();
+    Some(if issue {
+        LinkKind::GitHubIssue {
+            owner,
+            repo,
+            number,
+        }
+    } else {
+        LinkKind::GitHubPullRequest {
+            owner,
+            repo,
+            number,
+        }
+    })
+}
+
 fn jira_key(url: &str) -> Option<String> {
     static BROWSE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"^https?://[^/\s]+/browse/([A-Z][A-Z0-9]+-\d+)(?:[/?#].*)?$").expect("regex")
@@ -237,6 +300,39 @@ mod tests {
         let text = format!("---\nsync:\n  - \"\"\n  - {JIRA}\n---\n");
         let err = parse(&text).unwrap_err();
         assert!(matches!(err, DocumentError::EmptySync));
+    }
+
+    #[test]
+    fn github_issue_and_pull_request_urls() {
+        let issue = classify("https://github.com/acme/library/issues/12/").unwrap();
+        assert_eq!(
+            issue.kind,
+            LinkKind::GitHubIssue {
+                owner: "acme".into(),
+                repo: "library".into(),
+                number: "12".into(),
+            }
+        );
+        assert_eq!(issue.kind.summary(), "github-issue acme/library#12");
+
+        let pull = classify("https://github.com/acme/library/pull/4/files?w=1").unwrap();
+        assert_eq!(
+            pull.kind,
+            LinkKind::GitHubPullRequest {
+                owner: "acme".into(),
+                repo: "library".into(),
+                number: "4".into(),
+            }
+        );
+        assert_eq!(pull.kind.summary(), "github-pr acme/library#4");
+    }
+
+    #[test]
+    fn a_github_repository_is_not_a_copy() {
+        let err = classify("https://github.com/acme/library").unwrap_err();
+        assert!(matches!(err, DocumentError::UnrecognizedLink(_)));
+        let discussion = classify("https://github.com/acme/library/discussions/1").unwrap_err();
+        assert!(matches!(discussion, DocumentError::UnrecognizedLink(_)));
     }
 
     #[test]

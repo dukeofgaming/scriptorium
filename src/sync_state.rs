@@ -19,7 +19,7 @@ pub struct Ledger {
 /// The remote revision and body hash at the last successful copy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CopyRecord {
-    /// Provider revision (`updated` timestamp, page version, or document revision).
+    /// Provider revision (`updated` timestamp, page version, document revision, or GitHub `updatedAt`).
     pub revision: String,
     /// SHA-256 of the normalized manuscript body.
     pub content_sha256: String,
