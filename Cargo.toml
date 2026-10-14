@@ -2,7 +2,7 @@
 name = "scriptorium"
 version = "0.1.0"
 edition = "2021"
-description = "Copy a Markdown manuscript to and from Jira, Confluence, and Google Docs"
+description = "Copy a Markdown manuscript to and from Jira, Confluence, Google Docs, and GitHub"
 readme = "README.md"
 rust-version = "1.85"
 

@@ -1,6 +1,6 @@
 # Scriptorium
 
-Monks in a scriptorium copied a book by hand and kept the exemplar and the copy in agreement. Scriptorium does that for a Markdown manuscript and the Jira work items, Confluence pages, and Google Docs named in its front matter.
+Monks in a scriptorium copied a book by hand and kept the exemplar and the copy in agreement. Scriptorium does that for a Markdown manuscript and the Jira work items, Confluence pages, Google Docs, and GitHub issues and pull requests named in its front matter.
 
 ## Commands
 
@@ -23,7 +23,7 @@ Monks in a scriptorium copied a book by hand and kept the exemplar and the copy 
 | `diverged` | Both changed. Exit code 3. `push` and `pull` refuse without `--force`. |
 | `unsynced` | No ledger entry yet. A blank side, or two sides that already say the same thing, may be copied. |
 
-The remote revision is the provider's version token: Jira's `updated` field, the Confluence page version, or a Google Docs `revisionId`. The fake store used in tests uses a decimal counter.
+The remote revision is the provider's version token: Jira's `updated` field, the Confluence page version, a Google Docs `revisionId`, or the `updatedAt` of a GitHub issue or pull request. The fake store used in tests uses a decimal counter.
 
 ### Why `check`
 
@@ -46,6 +46,8 @@ sync:
   - https://acme.atlassian.net/browse/BOOK-12
   - https://acme.atlassian.net/wiki/spaces/LIB/pages/98765/Colophon
   - https://docs.google.com/document/d/DOCUMENT_ID/edit
+  - https://github.com/acme/library/issues/12
+  - https://github.com/acme/library/pull/4
 ---
 
 The text that is copied.
@@ -56,12 +58,16 @@ Recognised links:
 - Jira: `https://<site>.atlassian.net/browse/BOOK-12`, or a board URL whose query contains `selectedIssue=BOOK-12`
 - Confluence: a `/wiki/.../pages/<id>` URL, or `pageId=<id>`
 - Google Docs: `https://docs.google.com/document/d/<id>/...`
+- GitHub issue: `https://github.com/<owner>/<repo>/issues/<number>`
+- GitHub pull request: `https://github.com/<owner>/<repo>/pull/<number>`
+
+A `/files` suffix or a comment fragment on a GitHub URL still names that issue or pull request. The copied text is the body. Discussion URLs and a repository home page are not copies.
 
 The last agreed copy is stored beside the manuscript, not inside the front matter, so the header stays the scribe's. For `colophon.md` the ledger is `colophon.scriptorium.json`. It records each link's remote revision and a SHA-256 of the body.
 
 ## Auth
 
-Jira uses the official Atlassian CLI. Confluence uses the Cloud REST API, because `acli` still has no page write command. Google Docs uses the Docs REST API with Application Default Credentials. Details and the reasoning are in [docs/adr/0002-remote-auth.md](docs/adr/0002-remote-auth.md).
+Jira uses the official Atlassian CLI. Confluence uses the Cloud REST API, because `acli` still has no page write command. Google Docs uses the Docs REST API with Application Default Credentials. GitHub issues and pull requests use the official GitHub CLI. Details and the reasoning are in [docs/adr/0002-remote-auth.md](docs/adr/0002-remote-auth.md) and [docs/adr/0003-github-auth.md](docs/adr/0003-github-auth.md).
 
 1. Install [`acli`](https://developer.atlassian.com/cloud/acli/guides/how-to-get-started/) and log in:
 
@@ -88,6 +94,14 @@ Jira uses the official Atlassian CLI. Confluence uses the Cloud REST API, becaus
 
    `client.json` is an OAuth **Desktop** client from a Google Cloud project that has the Docs API enabled. A short-lived token also works: `export GOOGLE_ACCESS_TOKEN=...`. If a quota project is required, set `GOOGLE_CLOUD_QUOTA_PROJECT`.
 
+4. For GitHub, install the [GitHub CLI](https://cli.github.com/) and log in:
+
+   ```bash
+   gh auth login
+   ```
+
+   `gh` also reads `GH_TOKEN` or `GITHUB_TOKEN`. The copied text is the issue body or the pull request body.
+
 Tests do not need any of this. Set `SCRIPTORIUM_FAKE_REMOTE` to a JSON file and the binary talks to that file. Live checks are skipped unless `SCRIPTORIUM_LIVE=1`.
 
 ## Parser
@@ -96,7 +110,7 @@ YAML front matter is read with [`gray_matter`](https://crates.io/crates/gray_mat
 
 ## Layout
 
-Use cases are top-level modules (`pull`, `push`, `check`), independent of `acli` and HTTP. Adapters sit behind a remote port. Each vertical slice has one Gherkin file in `tests/features/` and runs the `scriptorium` binary.
+Use cases are top-level modules (`pull`, `push`, `check`), independent of `acli`, `gh`, and HTTP. Adapters sit behind a remote port. Each vertical slice has one Gherkin file in `tests/features/` and runs the `scriptorium` binary.
 
 ## Development
 
@@ -115,6 +129,8 @@ export SCRIPTORIUM_LIVE=1
 export SCRIPTORIUM_LIVE_JIRA_URL=https://acme.atlassian.net/browse/BOOK-12
 export SCRIPTORIUM_LIVE_CONFLUENCE_URL=https://acme.atlassian.net/wiki/spaces/LIB/pages/98765/Colophon
 export SCRIPTORIUM_LIVE_GOOGLE_DOC_URL=https://docs.google.com/document/d/DOCUMENT_ID/edit
+export SCRIPTORIUM_LIVE_GITHUB_ISSUE_URL=https://github.com/acme/library/issues/12
+export SCRIPTORIUM_LIVE_GITHUB_PR_URL=https://github.com/acme/library/pull/4
 cargo test --test live
 ```
 

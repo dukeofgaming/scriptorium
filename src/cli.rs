@@ -16,7 +16,7 @@ use crate::remote;
 #[command(
     name = "scriptorium",
     version,
-    about = "Copy a Markdown manuscript to and from Jira, Confluence, and Google Docs"
+    about = "Copy a Markdown manuscript to and from Jira, Confluence, Google Docs, and GitHub"
 )]
 struct Cli {
     #[command(subcommand)]

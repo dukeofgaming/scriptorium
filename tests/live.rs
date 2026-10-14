@@ -1,12 +1,13 @@
-//! Opt-in calls to real Jira, Confluence, and Google Docs.
+//! Opt-in calls to real Jira, Confluence, Google Docs, and GitHub.
 //!
 //! `cargo test` skips these. Set `SCRIPTORIUM_LIVE=1` and at least one URL:
 //! `SCRIPTORIUM_LIVE_JIRA_URL`, `SCRIPTORIUM_LIVE_CONFLUENCE_URL`,
-//! `SCRIPTORIUM_LIVE_GOOGLE_DOC_URL`. Push is a second opt-in,
+//! `SCRIPTORIUM_LIVE_GOOGLE_DOC_URL`, `SCRIPTORIUM_LIVE_GITHUB_ISSUE_URL`,
+//! `SCRIPTORIUM_LIVE_GITHUB_PR_URL`. Push is a second opt-in,
 //! `SCRIPTORIUM_LIVE_PUSH=1`, and it writes the same body back.
 
 use scriptorium::document::{self, LinkKind};
-use scriptorium::remote::{ConfluenceRest, GoogleDocsRest, JiraAcli, RemotePort};
+use scriptorium::remote::{ConfluenceRest, GitHubCli, GoogleDocsRest, JiraAcli, RemotePort};
 
 #[test]
 fn live_services_fetch_when_requested() {
@@ -55,9 +56,37 @@ fn live_services_fetch_when_requested() {
                 .expect("push google doc");
         }
     }
+    if let Ok(url) = std::env::var("SCRIPTORIUM_LIVE_GITHUB_ISSUE_URL") {
+        ran = true;
+        let link = document::classify(&url).expect("github issue url");
+        assert!(matches!(link.kind, LinkKind::GitHubIssue { .. }));
+        let copy = GitHubCli::from_env()
+            .fetch(&link)
+            .expect("fetch github issue");
+        assert!(!copy.revision.is_empty(), "github issue revision");
+        if live_push() {
+            GitHubCli::from_env()
+                .push(&link, &copy.body)
+                .expect("push github issue");
+        }
+    }
+    if let Ok(url) = std::env::var("SCRIPTORIUM_LIVE_GITHUB_PR_URL") {
+        ran = true;
+        let link = document::classify(&url).expect("github pull request url");
+        assert!(matches!(link.kind, LinkKind::GitHubPullRequest { .. }));
+        let copy = GitHubCli::from_env()
+            .fetch(&link)
+            .expect("fetch github pull request");
+        assert!(!copy.revision.is_empty(), "github pull request revision");
+        if live_push() {
+            GitHubCli::from_env()
+                .push(&link, &copy.body)
+                .expect("push github pull request");
+        }
+    }
     assert!(
         ran,
-        "SCRIPTORIUM_LIVE=1 needs SCRIPTORIUM_LIVE_JIRA_URL, SCRIPTORIUM_LIVE_CONFLUENCE_URL, or SCRIPTORIUM_LIVE_GOOGLE_DOC_URL"
+        "SCRIPTORIUM_LIVE=1 needs SCRIPTORIUM_LIVE_JIRA_URL, SCRIPTORIUM_LIVE_CONFLUENCE_URL, SCRIPTORIUM_LIVE_GOOGLE_DOC_URL, SCRIPTORIUM_LIVE_GITHUB_ISSUE_URL, or SCRIPTORIUM_LIVE_GITHUB_PR_URL"
     );
 }
 

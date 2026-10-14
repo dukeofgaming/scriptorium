@@ -1,7 +1,8 @@
-//! Remote copies. Use cases depend on [`RemotePort`], not on acli or HTTP.
+//! Remote copies. Use cases depend on [`RemotePort`], not on acli, gh, or HTTP.
 
 mod confluence;
 mod fake;
+mod github;
 mod google_docs;
 mod http;
 mod jira;
@@ -10,6 +11,7 @@ use crate::document::ClassifiedLink;
 
 pub use confluence::ConfluenceRest;
 pub use fake::FakeRemote;
+pub use github::GitHubCli;
 pub use google_docs::GoogleDocsRest;
 pub use jira::JiraAcli;
 
@@ -50,6 +52,7 @@ pub fn from_env() -> Result<Box<dyn RemotePort>, RemoteError> {
         jira: JiraAcli::from_env(),
         confluence: confluence::ConfluenceRest::from_env(),
         google_docs: google_docs::GoogleDocsRest::from_env(),
+        github: github::GitHubCli::from_env(),
     }))
 }
 
@@ -57,6 +60,7 @@ struct RoutingRemote {
     jira: JiraAcli<jira::SystemCommand>,
     confluence: confluence::ConfluenceRest<http::UreqHttp>,
     google_docs: google_docs::GoogleDocsRest<http::UreqHttp>,
+    github: github::GitHubCli<github::SystemCommand>,
 }
 
 impl RemotePort for RoutingRemote {
@@ -65,6 +69,8 @@ impl RemotePort for RoutingRemote {
             crate::document::LinkKind::Jira { .. } => self.jira.fetch(link),
             crate::document::LinkKind::Confluence { .. } => self.confluence.fetch(link),
             crate::document::LinkKind::GoogleDoc { .. } => self.google_docs.fetch(link),
+            crate::document::LinkKind::GitHubIssue { .. }
+            | crate::document::LinkKind::GitHubPullRequest { .. } => self.github.fetch(link),
         }
     }
 
@@ -73,6 +79,8 @@ impl RemotePort for RoutingRemote {
             crate::document::LinkKind::Jira { .. } => self.jira.push(link, body),
             crate::document::LinkKind::Confluence { .. } => self.confluence.push(link, body),
             crate::document::LinkKind::GoogleDoc { .. } => self.google_docs.push(link, body),
+            crate::document::LinkKind::GitHubIssue { .. }
+            | crate::document::LinkKind::GitHubPullRequest { .. } => self.github.push(link, body),
         }
     }
 }
